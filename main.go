@@ -33,9 +33,14 @@ func createNewGame(w http.ResponseWriter, r *http.Request) {
     }
     id := GlobalManager.NewPrivateGame(&NewClient)
 
-    NewClient.Ws.WriteMessage(1, []byte(id))
+    rd := models.RoomData {
+        ID: id,
+        Error: "",
+    }
 
-    log.Println("New game create with Id:", id);
+    NewClient.Ws.WriteJSON(rd)
+
+    log.Println("New game created with Id:", id);
 }
 
 func joinPrivateGame(w http.ResponseWriter, r *http.Request) {

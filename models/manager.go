@@ -54,7 +54,11 @@ func (pgm *PrivateGameManager) JoinGame(ws *websocket.Conn, id string) {
     room, err := pgm.findGame(id)
     if err != nil {
         log.Println(err)
-        ws.WriteMessage(1, []byte(err.Error()))
+        rd := RoomData {
+            ID: "",
+            Error: err.Error(),
+        }
+        ws.WriteJSON(rd)
         return
     }
 
@@ -63,9 +67,16 @@ func (pgm *PrivateGameManager) JoinGame(ws *websocket.Conn, id string) {
         Status: INQUEUE,
     }
 
+    rd := RoomData {
+        ID: id,
+        Error: "",
+    }
+
+    log.Println(rd)
+
     room.Add(&cl)
     log.Println("Successfully joining game with ID= " + id)
-    cl.Ws.WriteMessage(1, []byte("Successfully joining game with ID= " + id))
+    cl.Ws.WriteJSON(rd)
 }
 
 func randomId() string {

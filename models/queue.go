@@ -9,12 +9,21 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type GameState string
+type Canvas struct {
+    height int
+    width  int
+}
+
+type GameState  string
+type PlayerTurn string
 
 const (
     INLOBBY  = "INLOBBY"
     PLAYING  = "PLAYING"
     FINISHED = "FINISHED"
+
+    PLAYER1 = "PLAYER1"
+    PLAYER2 = "PLAYER2"
 )
 
 type Queue interface {
@@ -26,6 +35,7 @@ type PrivateQueue struct {
     Id      string
     Host    *Client
     State   GameState
+    Turn    PlayerTurn
 }
 
 func (p *PrivateQueue) Add(cl *Client) {
@@ -34,7 +44,7 @@ func (p *PrivateQueue) Add(cl *Client) {
 
 func (p *PrivateQueue) MonitorStart() {
     for {
-        messageType, m, err := p.Host.Ws.ReadMessage()
+        _, m, err := p.Host.Ws.ReadMessage()
         if err != nil {
             log.Println(err)
             return
@@ -42,8 +52,13 @@ func (p *PrivateQueue) MonitorStart() {
 
         log.Println(string(m))
         if string(m) == "GameStart" {
-            for _, c := range p.Clients {
-                if err := c.Ws.WriteMessage(messageType, []byte("GameStart")); err != nil {
+            for i, c := range p.Clients {
+                gd := GameStart {
+                    Message: true,
+                    Player: i + 1,
+                }
+                log.Println(gd)
+                if err := c.Ws.WriteJSON(gd); err != nil {
                     log.Println(err)
                     return
                 }
@@ -73,6 +88,7 @@ func(p *PrivateQueue) startGame() {
         }
         go p.readAndUpdateClientGameState(c, gameEnd)
     }
+    go p.updateBall()
 }
 
 func(p *PrivateQueue) monitorEnd(gameEnd chan bool) {
@@ -83,53 +99,89 @@ func(p *PrivateQueue) monitorEnd(gameEnd chan bool) {
     }
 }
 
+var canvas = Canvas{width: 1400, height: 1000}
+var ball = Ball{
+    X: (canvas.width / 2) - 9,
+    Y: (canvas.height / 2) - 9,
+    DirectionX: IDLE,
+    DirectionY: IDLE,
+    Speed: 9,
+}
+
+/*
+    if (this.ball.x - this.ball.width <= this.player.x && this.ball.x >= this.player.x - this.player.width) {
+        if (this.ball.y <= this.player.y + this.player.height && this.ball.y + this.ball.height >= this.player.y) {
+            this.ball.x = (this.player.x + this.ball.width);
+            this.ball.moveX = DIRECTION.RIGHT;
+
+            beep1.play();
+        }
+    }
+*/
+
+func (p *PrivateQueue) updateBall() {
+    interval := time.Second / 60
+    ball.Randomize(canvas.height)
+    for {
+        start := time.Now()
+        switch ball.DirectionX {
+        case LEFT:
+            ball.X -= ball.Speed
+        case RIGHT:
+            ball.X += ball.Speed
+        }
+        switch ball.DirectionY {
+        case UP:
+            ball.Y -= int(float64(ball.Speed) / 1.5)
+        case DOWN:
+            ball.Y += int(float64(ball.Speed) / 1.5)
+        }
+        // handle ball out of bounds collisions
+        if ball.X <= 0 { p._resetTurn() }
+        if ball.X >= canvas.width - ball.Width() { p._resetTurn() }
+        if ball.Y <= 0 { ball.DirectionY = DOWN }
+        if ball.Y >= canvas.height - ball.Height() { ball.DirectionY = UP }
+        time.Sleep(interval - time.Since(start))
+    }
+}
+
+func (p *PrivateQueue) _resetTurn() {
+    ball.Reset()
+    ball.Randomize(canvas.height)
+
+    time.Sleep(1 * time.Second)
+}
+
 func (p *PrivateQueue) readAndUpdateClientGameState(sender *Client, gameEnd chan bool) {
     for {
-        data, err := readSenderMessage(sender.Ws, p.State)
+        var data GameDataReceive
+        err := sender.Ws.ReadJSON(&data);
         if err != nil {
             handleError(err, gameEnd)
             return
         }
 
+        payload := GameDataSend {
+            PaddleX: data.PaddleX,
+            BallY: ball.Y,
+            BallX: ball.X,
+        }
+
         for _, c := range p.Clients {
             if c == sender { continue }
 
-            c.Ws.WriteJSON(data)
+            c.Ws.WriteJSON(payload)
         }
     }
-}
-
-func readSenderMessage(ws *websocket.Conn, gameState GameState) (Payload, error) {
-    switch gameState {
-    case INLOBBY:
-        var data GameStart
-        err := ws.ReadJSON(&data)
-        if err != nil {
-            return nil, err
-        }
-        if data.Message == true {
-            log.Println("Game Starting...")
-        }
-        return &data, nil
-    case PLAYING:
-        var data GameData
-        err := ws.ReadJSON(&data)
-        if err != nil {
-            return nil, err
-        }
-        return &data, nil
-    }
-    var data GameData
-    err := ws.ReadJSON(&data)
-    if err != nil {
-        return nil, err
-    }
-    return &data, nil
 }
 
 func handleError(err error, gameEnd chan bool) {
 
-    if err != nil { if ce, ok := err.(*websocket.CloseError); ok { switch ce.Code { case websocket.CloseNormalClosure:
+    if err != nil {
+    if ce, ok := err.(*websocket.CloseError);
+        ok {
+        switch ce.Code {
+        case websocket.CloseNormalClosure:
         gameEnd <- true
         case websocket.CloseGoingAway:
             gameEnd <- true
