@@ -26,11 +26,20 @@ func (pgm *PrivateGameManager) NewPrivateGame(host *Client) string {
     defer pgm.mu.Unlock()
 
     id := randomId()
+    ball := Ball{
+        X: (canvas.width / 2) - 9,
+        Y: (canvas.height / 2) - 9,
+        DirectionX: IDLE,
+        DirectionY: IDLE,
+        Speed: 9,
+    }
     NewQueue := PrivateQueue {
+        Manager: pgm,
         Clients: []*Client{host},
         Id:      id,
         Host:    host,
         State:   INLOBBY,
+        ball:    ball,
     }
 
     pgm.Games[id] = &NewQueue
@@ -44,8 +53,7 @@ func (pgm *PrivateGameManager) NewPrivateGame(host *Client) string {
 func (pgm *PrivateGameManager) findGame(id string) (*PrivateQueue, error) {
     room, ok := pgm.Games[id]
     if !ok {
-        log.Println("Error joining game with ID= " + id)
-        return nil, errors.New("Error finding game with ID=" + id)
+        return nil, errors.New("Error finding game with ID: " + id)
     }
     return room, nil
 }
@@ -72,11 +80,15 @@ func (pgm *PrivateGameManager) JoinGame(ws *websocket.Conn, id string) {
         Error: "",
     }
 
-    log.Println(rd)
-
     room.Add(&cl)
-    log.Println("Successfully joining game with ID= " + id)
+    log.Println("Successfully joining game with ID: " + id)
     cl.Ws.WriteJSON(rd)
+}
+
+func (pgm *PrivateGameManager) CleanUp(id string) {
+    pgm.mu.Lock()
+    delete(pgm.Games, id)
+    pgm.mu.Unlock()
 }
 
 func randomId() string {

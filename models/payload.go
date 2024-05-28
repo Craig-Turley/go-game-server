@@ -9,15 +9,18 @@ type Payload interface {
 }
 
 type GameDataReceive struct {
-    PaddleX    float32 `json:"paddleY"`
+    PaddleY float32 `json:"paddleY"`
+    PaddleX float32 `json:"PaddleX"`
 }
 
 func(g *GameDataReceive) Payload() {}
 
 type GameDataSend struct {
-    PaddleX    float32 `json:"paddleY"`
-    BallX      int     `json:"ballX"`
-    BallY      int     `json:"ballY"`
+    PaddleY        float32 `json:"paddleY"`
+    BallX          float32 `json:"ballX"`
+    BallY          float32 `json:"ballY"`
+    PlayerOneScore int     `json:"playerOneScore"`
+    PlayerTwoScore int     `json:"playerTwoScore"`
 }
 func(g *GameDataSend) Payload() {}
 
@@ -46,16 +49,16 @@ const (
 )
 
 type Ball struct {
-    X          int       `json:"ballX"`
-    Y          int       `json:"ballY"`
+    X          float32   `json:"ballX"`
+    Y          float32   `json:"ballY"`
     DirectionX DIRECTION `json:"directionX"`
     DirectionY DIRECTION `json:"directionY"`
-    Speed      int       `json:"speed"`
+    Speed      float32   `json:"speed"`
 }
 
 func (b *Ball) Payload()    {}
-func (b *Ball) Height() int { return 18 }
-func (b *Ball) Width()  int { return 18 }
+func (b *Ball) Height() float32 { return 18 }
+func (b *Ball) Width()  float32 { return 18 }
 func (b *Ball) Reset() {
     b.X = (canvas.width / 2) - 9
     b.Y = (canvas.height / 2) - 9
@@ -63,10 +66,17 @@ func (b *Ball) Reset() {
     b.DirectionY = IDLE
     b.Speed = 9
 }
-func (b *Ball) Randomize(height int) {
+func (b *Ball) Randomize(height float32) {
     random := []DIRECTION{UP, DOWN, LEFT, RIGHT}
     // b.moveX = add turn based directions
     b.DirectionX = random[rand.Intn(4-2) + 2]
     b.DirectionY = random[rand.Intn(2)]
-    ball.Y = rand.Intn(height - 200) + 200
+    b.Y = rand.Float32() * (height - 200) + 200
 }
+
+type Score struct {
+    PlayerOne   int  `json:"playerOne"`
+    PlayerTwo   int  `json:"playerTwo"`
+}
+
+func (s *Score) Payload() {}

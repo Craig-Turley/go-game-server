@@ -19,6 +19,11 @@ func homePageHandler(w http.ResponseWriter, r *http.Request) {
     w.Write([]byte("HomePage"))
 }
 
+func activeGamesHandler(w http.ResponseWriter, r *http.Request) {
+    length := len(GlobalManager.Games)
+    w.Write([]byte(fmt.Sprintf("%d", length)))
+}
+
 func createNewGame(w http.ResponseWriter, r *http.Request) {
     ws, err := GlobalUpgrader.Upgrade(w, r, nil)
     if err != nil {
@@ -59,6 +64,7 @@ func joinPrivateGame(w http.ResponseWriter, r *http.Request) {
 
 func setUpRoutes() {
     http.HandleFunc("/home", homePageHandler)
+    http.HandleFunc("/active_games", activeGamesHandler)
     http.HandleFunc("/ws/create_game", createNewGame)
     http.HandleFunc("/ws/join_game/", joinPrivateGame)
 }
